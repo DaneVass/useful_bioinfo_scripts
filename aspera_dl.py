@@ -19,26 +19,28 @@ from contextlib import contextmanager
 
 def main():
     try:
-        subprocess.check_output(['ascp', '--version'])
+        subprocess.run(['ascp', '--version'])
     except:
         sys.exit("ascp binary not found, is Aspera client installed and in your path?")
     
     try:
-        subprocess.check_output(['prefetch', '--version'])
+        subprocess.run(['prefetch', '--version'])
     except:
         sys.exit("SRA toolkit: prefetch not found, is it installed and in your path?")
 
     # Define options
     parser = OptionParser()
-    parser.add_option('-i','--infile', type = 'string', dest = 'infile', help = 'SRA/GEO file to download')
+    parser.add_option('-i','--infile', type = 'string', dest = 'infile', help = 'SRA/GEO file to download. SRR|ERR|DRR ID')
     parser.add_option('-o','--outdir', type = 'string', dest = 'outdir', help = 'path to output directory. Use full or relative path. Current working directory used if not specified.')
     #parser.add_option('-n','--filename', type = 'string', dest = 'filename', help = 'desired prefix of output file(s)')
-    parser.add_option('--useprefetch', action = "store_true", help = 'Use SRA toolkit prefetch without aspera. Runs prefetch <SRA ID> in local folder.')
+    parser.add_option('--useprefetch', action = "store_true", dest='prefetch', help = 'Use SRA toolkit prefetch without aspera. Runs prefetch <SRA ID> in local folder.')
     parser.add_option("--ascp_opts", type = 'string', dest = 'ascp_opts', help = 'Additional options to pass to ascp. Defaults to -k 1 -T -r -l 300m -v.') 
+    parser.add_option("--fastq-dump", action = "store_true", dest='fastq-dump', help = "run fastq-dump after sra file download?")
+
     (options,args) = parser.parse_args()
    
     # handle using prefetch first
-    if options.useprefetch:
+    if options.prefetch:
         cmd="prefetch -v -X 30G %s" % (infile)
         sys.exit("SRA download using prefetch complete!")
     
@@ -51,11 +53,13 @@ def main():
         outdir=os.getcwd()
 
     # get location of aspera ascp binary
-    ASPERA = subprocess.check_output(['which', 'ascp'])
-    
+    ASPERA = subprocess.run(['which', 'ascp'], encoding='utf-8', stdout=subprocess.PIPE)
+    ASPERA = ASPERA.stdout
     # get location of aspera ssh key
     path1 = os.path.dirname(ASPERA)
     SSH_KEY = os.path.dirname(path1) + '/etc/asperaweb_id_dsa.openssh'
+    print(path1)
+    print(SSH_KEY)
     
     print("Aspera ascp location is: %s" % (ASPERA.rstrip())) 
     print("Aspera ssh key location is: %s" % (SSH_KEY.rstrip())) 
@@ -114,7 +118,10 @@ def main():
     print("%s download from SRA using ascp into %s is complete!" % (infile, outdir))
     
     # run fastq-dump
-    #cmd2='fastq-dump '
+    if options.fastq-dump:
+	sra-infile = infile+'.sra'
+	cmd2='fastq-dump -A %s --split-files -o %s' % (sra-infile, outdir)
+	subprocess.call(cmd2, shell=True)
 
 if __name__ == '__main__':
     main()
